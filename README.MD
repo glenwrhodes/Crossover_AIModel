@@ -1,4 +1,4 @@
-owered Recommendation Engine
+# AI-Powered Recommendation Engine
 
 ## Overview
 This project implements an AI-powered recommendation engine for an e-commerce platform using collaborative filtering (SVD). It includes data preprocessing, model training, and a Flask web application to provide personalized product recommendations.
