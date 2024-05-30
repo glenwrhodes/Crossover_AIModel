@@ -1,1 +1,1 @@
-web: python app.py
+web: ./fetch-lfs.sh && python app.py
