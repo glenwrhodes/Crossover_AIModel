@@ -31,10 +31,12 @@ df.ffill(inplace=True)
 df.drop_duplicates(inplace=True)
 
 # Downcast numeric types to save memory
-df['HelpfulnessNumerator'] = pd.to_numeric(df['HelpfulnessNumerator'], downcast='integer')
-df['HelpfulnessDenominator'] = pd.to_numeric(df['HelpfulnessDenominator'], downcast='integer')
-df['Score'] = pd.to_numeric(df['Score'], downcast='integer')
-df['Time'] = pd.to_numeric(df['Time'], downcast='integer')
+columns_to_downcast = ['HelpfulnessNumerator', 'HelpfulnessDenominator', 'Score', 'Time']
+for col in columns_to_downcast:
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col], downcast='integer')
+    else:
+        print(f"Column '{col}' not found in the DataFrame.")
 
 # Load the trained SVD model and product info
 model = joblib.load('models/svd_model.pkl')
