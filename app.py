@@ -1,9 +1,15 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import joblib
 from svd_tqdm import SVDTqdm
+from flask_caching import Cache
+from datetime import datetime
+import os
 
 app = Flask(__name__)
+
+# Configure cache
+cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 
 # Configuration
 USERS_PER_PAGE = 10
@@ -29,6 +35,7 @@ model = joblib.load('models/svd_model.pkl')
 product_info = joblib.load('models/product_info.pkl')
 
 # Function to generate top N recommendations for a user
+@cache.memoize(timeout=1800)  # Cache result for 30 minutes
 def get_top_n_recommendations(user_id, model, df, product_info, n=5):
     # Get the list of all product IDs
     all_product_ids = df['ProductId'].unique()
@@ -43,6 +50,7 @@ def get_top_n_recommendations(user_id, model, df, product_info, n=5):
     # Sort predictions by estimated rating in descending order
     top_n_predictions = sorted(predictions, key=lambda x: x.est, reverse=True)[:n]
 
+    # Return the top N product recommendations with names and summaries
     # Return the top N product recommendations with summaries
     return [(pred.iid, pred.est, product_info.get(pred.iid, "No summary available")) for pred in top_n_predictions]
 
@@ -74,6 +82,29 @@ def index(page=1):
 def recommendations(user_id):
     top_recommendations = get_top_n_recommendations(user_id, model, df, product_info, n=5)
     return render_template('recommendations.html', user_id=user_id, recommendations=top_recommendations)
+
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    product_id = data.get('product_id')
+    feedback = data.get('feedback')
+
+    feedback_data = pd.DataFrame({
+        'timestamp': [datetime.now().isoformat()],
+        'user_id': [user_id],
+        'product_id': [product_id],
+        'feedback': [feedback]
+    })
+
+    # Append feedback to CSV file
+    feedback_file_path = 'dataset/feedback.csv'
+    if os.path.exists(feedback_file_path):
+        feedback_data.to_csv(feedback_file_path, mode='a', header=False, index=False)
+    else:
+        feedback_data.to_csv(feedback_file_path, index=False)
+
+    return jsonify({"status": "success"}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
