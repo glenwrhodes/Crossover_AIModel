@@ -32,6 +32,9 @@ df.drop_duplicates(inplace=True)
 
 # Downcast numeric types to save memory
 columns_to_downcast = ['HelpfulnessNumerator', 'HelpfulnessDenominator', 'Score', 'Time']
+
+print(df.columns)
+
 for col in columns_to_downcast:
     if col in df.columns:
         df[col] = pd.to_numeric(df[col], downcast='integer')
