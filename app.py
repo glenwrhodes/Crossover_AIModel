@@ -16,7 +16,13 @@ USERS_PER_PAGE = 10
 
 # Load the dataset for user listing
 data_path = 'dataset/Reviews.csv'
-df = pd.read_csv(data_path)
+
+print("Loading CSV data...")
+try:
+    df = pd.read_csv(data_path)
+    print("CSV data loaded successfully!")
+except Exception as e:
+    print(f"An error occurred while loading CSV data: {e}")
 
 # Handle missing values using forward fill
 df.ffill(inplace=True)
