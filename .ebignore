@@ -1,0 +1,25 @@
+# .ebignore
+.venv/
+venv/
+env/
+.git/
+.gitignore
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.env
+*.log
+logs/
+nohup.out
+*.db
+*.sqlite3
+*.DS_Store
+data/
+datasets/
+build/
+dist/
+*.egg-info/
+*.csv
+*.pth
+*.pkl

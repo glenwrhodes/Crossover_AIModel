@@ -1,2 +1,6 @@
 models/svd_model.pkl filter=lfs diff=lfs merge=lfs -text
 dataset/Reviews.csv filter=lfs diff=lfs merge=lfs -text
+models/reco_model.pth filter=lfs diff=lfs merge=lfs -text
+dataset/faiss.index filter=lfs diff=lfs merge=lfs -text
+dataset/svd_matrix.pkl filter=lfs diff=lfs merge=lfs -text
+dataset/tfidf_matrix.pkl filter=lfs diff=lfs merge=lfs -text
