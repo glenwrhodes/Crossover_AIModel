@@ -49,7 +49,7 @@ except Exception as e:
     print(f"Error setting device: {e}")
     device = torch.device('cpu')
 
-# Load data and integrate new reviews
+# Load data and integrate new new reviews
 try:
     df = pd.read_csv(csv_file)
     print(f"Loaded {len(df)} rows from {csv_file}")
@@ -167,7 +167,7 @@ else:
 # Model, loss function, optimizer
 try:
     model = CollaborativeFilteringModel(num_users, num_items, embedding_dim, dropout_rate).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay) # Adam optimizer with L2 regularization
     print("Model and optimizer initialized")
 except Exception as e:
     print(f"Error initializing model and optimizer: {e}")
@@ -185,7 +185,7 @@ except Exception as e:
     print(f"Error loading model: {e}")
     raise e
 
-criterion = nn.MSELoss()
+criterion = nn.MSELoss() # Mean Squared Error loss
 
 print("Starting training loop...")
 
@@ -251,7 +251,7 @@ for epoch in range(start_epoch, num_epochs):
     print(f'Epoch {epoch+1}/{num_epochs}, Test Loss: {avg_test_loss}, Test Accuracy: {test_accuracy}')
 
     # Calculate Precision and Recall with a threshold
-    # Assuming a threshold of 3 for a positive prediction
+    # With a threshold of 3 for a positive prediction
     y_true = (score.cpu().numpy() >= 3).astype(int)
     y_pred = (output.cpu().numpy() >= 3).astype(int)
     precision = precision_score(y_true, y_pred, average='binary')

@@ -21,19 +21,20 @@ import requests
 app = Flask(__name__)
 
 # Configure cache
-cache = Cache(app, config={'CACHE_TYPE': 'simple'})
+cache = Cache(app, config={'CACHE_TYPE': 'simple'}) # Can be 'simple', 'redis', 'memcached', etc.
 
 # Configure logging
-logging.basicConfig(filename='app.log', level=logging.INFO)
+logging.basicConfig(filename='app.log', level=logging.INFO) # Change to DEBUG for more verbosity
 
 # Global variable to store the product names
-product_names = {}
+product_names = {} 
 
 
 @app.before_request
 def start_timer():
-    request.start_time = datetime.now()
+    request.start_time = datetime.now() # Start the timer
 
+# Log details of each request
 @app.after_request
 def log_request(response):
     if not hasattr(request, 'start_time'):
@@ -52,42 +53,14 @@ def log_request(response):
 # Configuration
 USERS_PER_PAGE = 10
 
-# AWS S3 Configuration
-AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
-AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
-AWS_S3_BUCKET = os.environ.get("AWS_S3_BUCKET")
-
-# Attempt to import boto3
-try:
-    import boto3
-    BOTO3_AVAILABLE = True
-except ImportError:
-    BOTO3_AVAILABLE = False
-
 # Load the dataset for user listing
-data_path = 'dataset/Reviews.csv'
-
-if BOTO3_AVAILABLE:
-    def download_file_from_s3(bucket, key, filename):
-        s3 = boto3.client(
-            's3',
-            aws_access_key_id=AWS_ACCESS_KEY,
-            aws_secret_access_key=AWS_SECRET_KEY
-        )
-        s3.download_file(bucket, key, filename)
-
-    # Check if the file exists locally, if not download it from S3
-    if not os.path.exists(data_path):
-        os.makedirs('dataset', exist_ok=True)
-        download_file_from_s3(AWS_S3_BUCKET, 'Reviews.csv', data_path)
-
-# Paths for precomputed data
-tfidf_matrix_path = 'dataset/tfidf_matrix.pkl'
-svd_matrix_path = 'dataset/svd_matrix.pkl'
-faiss_index_path = 'dataset/faiss.index'
+data_path = 'dataset/Reviews.csv' # Reviews dataset
+tfidf_matrix_path = 'dataset/tfidf_matrix.pkl' # TF-IDF matrix
+svd_matrix_path = 'dataset/svd_matrix.pkl' # SVD matrix
+faiss_index_path = 'dataset/faiss.index' # Faiss index
 
 # Path for storing new reviews
-new_reviews_file = 'dataset/new_reviews.csv'
+new_reviews_file = 'dataset/new_reviews.csv' # New reviews file
 
 def download_files(urls, destinations):
     """
@@ -132,7 +105,6 @@ urls = [
     'https://aimodelaws.s3.amazonaws.com/tfidf_matrix.pkl',
     'https://aimodelaws.s3.amazonaws.com/reco_model.pth',
     'https://aimodelaws.s3.amazonaws.com/Reviews.csv'
-
 ]
 
 destinations = [
@@ -146,18 +118,19 @@ destinations = [
 def initialize():
     global df, model, faiss_index, reduced_tfidf_matrix, num_users, num_items, user_to_idx, idx_to_user, item_to_idx, idx_to_item, device, popular_items, product_names
 
-    download_files(urls, destinations)
+    download_files(urls, destinations) # Download the required files
 
     # Load data
     try:
-        df = pd.read_csv(data_path)
+        df = pd.read_csv(data_path) # Load the dataset
     except FileNotFoundError:
-        logging.error("Dataset not found at %s", data_path)
+        logging.error("Dataset not found at %s", data_path) 
         df = None
         return
 
     # Load product names if available
-    product_names_path = 'dataset/ProductNames.csv'
+    product_names_path = 'dataset/ProductNames.csv' # Product names file
+    
     if os.path.exists(product_names_path):
         product_names_df = pd.read_csv(product_names_path)
         product_names = pd.Series(product_names_df.ProductName.values, index=product_names_df.ProductId).to_dict()
@@ -215,6 +188,7 @@ def initialize():
             reduced_tfidf_matrix = pickle.load(f)
         faiss_index = faiss.read_index(faiss_index_path)
     else:
+        # Compute TF-IDF, SVD, and Faiss index, and save them for future use  
         logging.info("Computing TF-IDF, SVD, and Faiss index...")
         # TF-IDF for content-based filtering with Faiss
         tfidf = TfidfVectorizer(stop_words='english')
@@ -248,7 +222,7 @@ def initialize():
 # Initialize the data and model outside of the main block
 initialize()
 
-# Function to generate top N recommendations for a user
+# Function to generate top N recommendations for a user, picking a random subset for display
 def get_recommendations(user_id, top_n=20, display_n=5):
     if user_id not in user_to_idx:
         logging.warning("User ID %s not found in user_to_idx mapping.", user_id)
@@ -307,7 +281,7 @@ def content_based_recommendations(product_id, n=10):
     distances, indices = faiss_index.search(reduced_tfidf_matrix[idx].reshape(1, -1), n + 1)  # +1 because the first result is the query item itself
     return df['ProductId'].iloc[indices.flatten()[1:]].tolist()
 
-
+# Function for hybrid recommendations, combining collaborative and content-based filtering
 def hybrid_recommendations(user_id, top_n=20, display_n=5):
     if user_id not in user_to_idx:
         logging.warning("User %s not found, returning popular items.", user_id)
@@ -354,7 +328,7 @@ def hybrid_recommendations(user_id, top_n=20, display_n=5):
 
 @app.context_processor
 def utility_processor():
-    def range_to(start, end):
+    def range_to(start, end):  
         return range(start, end)
 
     def min_value(a, b):
@@ -365,6 +339,7 @@ def utility_processor():
 
     return dict(range_to=range_to, min_value=min_value, max_value=max_value)
 
+# The main route, which lists users, and allows for pagination
 @app.route('/')
 @app.route('/page/<int:page>')
 def index(page=1):
@@ -380,12 +355,14 @@ def index(page=1):
 
     return render_template('index.html', users=users, page=page, total_pages=total_pages)
 
+# Route to display the recommendations for a user
 @app.route('/recommendations/<user_id>')
 @cache.cached(timeout=600, key_prefix='recommendations_%s')
 def recommendations(user_id):
     top_recommendations = hybrid_recommendations(user_id, top_n=20, display_n=5)
     return render_template('recommendations.html', user_id=user_id, recommendations=top_recommendations)
 
+# Route to collect feedback from users
 @app.route('/feedback', methods=['POST'])
 def feedback():
     data = request.get_json()
@@ -405,7 +382,7 @@ def feedback():
 
     # Prepare feedback data in the same structure as Reviews.csv
     feedback_data = pd.DataFrame({
-        'Id': [None],  # Assuming Id is generated automatically or not required
+        'Id': [None],  # Assigning None for this transaction
         'ProductId': [product_id],
         'UserId': [user_id],
         'ProfileName': [None],  # Assuming ProfileName is not available
@@ -426,9 +403,9 @@ def feedback():
 
 @app.route('/readme')
 def readme():
-
     return render_template('readme.html')
 
+# Route that displays the deep learning training metrics
 @app.route('/training_metrics')
 def training_metrics():
     metrics_file_path = 'models/training_metrics.csv'

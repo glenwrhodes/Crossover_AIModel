@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+# Define the model
 class CollaborativeFilteringModel(nn.Module):
     def __init__(self, num_users, num_items, embedding_dim, dropout_rate=0.2):
         super(CollaborativeFilteringModel, self).__init__()
