@@ -10,6 +10,11 @@ This project implements an AI-powered recommendation engine for an e-commerce pl
 - **Logging**: Logs request handling and performance metrics.
 - **Feedback Collection**: Collects user feedback for continuous model evaluation and improvement.
 
+# Demo
+
+Try it out here:
+[http://aimodelenv.eba-jemhd2pz.us-east-1.elasticbeanstalk.com/]
+
 ## Setup
 1. **Clone the Repository**:
     ```bash
