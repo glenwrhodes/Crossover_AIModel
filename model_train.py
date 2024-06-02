@@ -56,10 +56,14 @@ try:
     if os.path.exists(new_reviews_file):
         new_df = pd.read_csv(new_reviews_file)
         print(f"Loaded {len(new_df)} new reviews from {new_reviews_file}")
+
+        # Ensure new reviews have the right structure and split
+        new_df = new_df[['ProductId', 'UserId', 'Score', 'Time']]
         df = pd.concat([df, new_df], ignore_index=True)
 except Exception as e:
     print(f"Error loading data: {e}")
     raise e
+
 
 # Preprocessing
 try:

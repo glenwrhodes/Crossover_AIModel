@@ -16,6 +16,7 @@ from sklearn.decomposition import TruncatedSVD
 import faiss
 import random
 import markdown
+import requests
 
 app = Flask(__name__)
 
@@ -88,9 +89,64 @@ faiss_index_path = 'dataset/faiss.index'
 # Path for storing new reviews
 new_reviews_file = 'dataset/new_reviews.csv'
 
+def download_files(urls, destinations):
+    """
+    Downloads files from the given URLs and saves them to the specified destinations.
+
+    :param urls: List of URLs of the files to download.
+    :param destinations: List of local paths where the files will be saved.
+    """
+    if len(urls) != len(destinations):
+        print("The number of URLs and destinations must be the same.")
+        return
+
+    for url, destination in zip(urls, destinations):
+        # Check if the file already exists
+        if os.path.exists(destination):
+            print(f"File already exists: {destination}. Skipping download.")
+            continue
+
+        try:
+            # Send a GET request to the URL
+            response = requests.get(url, stream=True)
+            # Check if the request was successful
+            if response.status_code == 200:
+                # Create the necessary directories if they don't exist
+                os.makedirs(os.path.dirname(destination), exist_ok=True)
+
+                # Open the local file in write-binary mode
+                with open(destination, 'wb') as file:
+                    # Write the content of the response to the local file in chunks
+                    for chunk in response.iter_content(chunk_size=8192):
+                        file.write(chunk)
+                print(f"File successfully downloaded and saved to {destination}")
+            else:
+                print(f"Failed to download file from {url}. HTTP Status Code: {response.status_code}")
+        except Exception as e:
+            print(f"An error occurred while downloading {url}: {e}")
+
+
+# Example usage:
+urls = [
+    'https://aimodelaws.s3.amazonaws.com/svd_matrix.pkl',
+    'https://aimodelaws.s3.amazonaws.com/tfidf_matrix.pkl',
+    'https://aimodelaws.s3.amazonaws.com/reco_model.pth',
+    'https://aimodelaws.s3.amazonaws.com/Reviews.csv'
+
+]
+
+destinations = [
+    'dataset/svd_matrix.pkl',
+    'dataset/tfidf_matrix.pkl',
+    'models/reco_model.pth',
+    'dataset/Reviews.csv'
+]
+
 # Function to initialize the data and model
 def initialize():
     global df, model, faiss_index, reduced_tfidf_matrix, num_users, num_items, user_to_idx, idx_to_user, item_to_idx, idx_to_item, device, popular_items, product_names
+
+    download_files(urls, destinations)
 
     # Load data
     try:
@@ -232,8 +288,14 @@ def get_recommendations(user_id, top_n=20, display_n=5):
 
 # Function to get popular items
 def get_popular_items(top_n=20):
-    popular_items = df.groupby('ProductId')['Score'].mean().sort_values(ascending=False).index[:top_n].tolist()
-    return [(pid, None, product_names.get(pid, df[df['ProductId'] == pid]['Summary'].values[0])) for pid in popular_items]
+    popular_items = df.groupby('ProductId')['Score'].mean().sort_values(ascending=False).index[:top_n]
+    popular_recs = []
+    for pid in popular_items:
+        avg_rating = df[df['ProductId'] == pid]['Score'].mean()
+        summary = df[df['ProductId'] == pid]['Summary'].values[0] if not df[df['ProductId'] == pid].empty else "No summary available"
+        product_name = product_names.get(pid, summary)
+        popular_recs.append((pid, avg_rating, product_name))
+    return popular_recs
 
 # Function for content-based recommendations
 def content_based_recommendations(product_id, n=10):
@@ -246,29 +308,14 @@ def content_based_recommendations(product_id, n=10):
     return df['ProductId'].iloc[indices.flatten()[1:]].tolist()
 
 
-# Hybrid recommendations function
 def hybrid_recommendations(user_id, top_n=20, display_n=5):
     if user_id not in user_to_idx:
         logging.warning("User %s not found, returning popular items.", user_id)
-        popular_recs = get_popular_items(top_n)
-        if len(popular_recs) > display_n:
-            final_recommendations = random.sample(popular_recs, display_n)
-        else:
-            final_recommendations = popular_recs
-        # Construct the recommendation tuple for template
-        final_recommendations = [(pid, None, product_names.get(pid, df[df['ProductId'] == pid]['Summary'].values[0])) for pid in final_recommendations]
-        return final_recommendations
+        return get_popular_items(display_n)
 
     collaborative_recs = get_recommendations(user_id, top_n, display_n)
     if not collaborative_recs:
-        popular_recs = get_popular_items(top_n)
-        if len(popular_recs) > display_n:
-            final_recommendations = random.sample(popular_recs, display_n)
-        else:
-            final_recommendations = popular_recs
-        # Construct the recommendation tuple for template
-        final_recommendations = [(pid, None, product_names.get(pid, df[df['ProductId'] == pid]['Summary'].values[0])) for pid in final_recommendations]
-        return final_recommendations
+        return get_popular_items(display_n)
 
     collaborative_product_ids = {pid: (pid, score, summary) for pid, score, summary in collaborative_recs}
 
@@ -284,16 +331,15 @@ def hybrid_recommendations(user_id, top_n=20, display_n=5):
         content_recs = content_based_recommendations(product_id, top_n // 2)
         for content_pid in content_recs:
             if content_pid not in hybrid_recs and len(hybrid_recs) < display_n:
-                content_summary = df[df['ProductId'] == content_pid]['Summary'].values[0]
+                content_summary = df[df['ProductId'] == content_pid]['Summary'].values[0] if not df[df['ProductId'] == content_pid].empty else "No summary available"
                 hybrid_recs[content_pid] = (content_pid, collaborative_product_ids[product_id][1], product_names.get(content_pid, content_summary))  # Use collaborative score
 
     # Supplement with popular items to meet the quota of display_n
     if len(hybrid_recs) < display_n:
         popular_recs = get_popular_items(display_n - len(hybrid_recs))
-        for popular_pid in popular_recs:
+        for popular_pid, avg_rating, popular_summary in popular_recs:
             if popular_pid not in hybrid_recs and len(hybrid_recs) < display_n:
-                popular_summary = df[df['ProductId'] == popular_pid]['Summary'].values[0]
-                hybrid_recs[popular_pid] = (popular_pid, None, product_names.get(popular_pid, popular_summary))
+                hybrid_recs[popular_pid] = (popular_pid, avg_rating, popular_summary)
 
     resolved_recommendations = list(hybrid_recs.values())
 
@@ -347,14 +393,28 @@ def feedback():
     product_id = data.get('product_id')
     feedback = data.get('feedback')
 
+    # Convert feedback to score
+    if feedback == 'like':
+        score = 5
+    elif feedback == 'dislike':
+        score = 1
+    else:
+        return jsonify({"status": "error", "message": "Invalid feedback type"}), 400
+
     logging.info("Received feedback for user %s on product %s: %s", user_id, product_id, feedback)
 
-    # Prepare feedback data
+    # Prepare feedback data in the same structure as Reviews.csv
     feedback_data = pd.DataFrame({
-        'timestamp': [datetime.now().isoformat()],
-        'user_id': [user_id],
-        'product_id': [product_id],
-        'feedback': [feedback]
+        'Id': [None],  # Assuming Id is generated automatically or not required
+        'ProductId': [product_id],
+        'UserId': [user_id],
+        'ProfileName': [None],  # Assuming ProfileName is not available
+        'HelpfulnessNumerator': [None],
+        'HelpfulnessDenominator': [None],
+        'Score': [score],
+        'Time': [datetime.now().timestamp()],
+        'Summary': [''],  # Assuming no summary for feedback
+        'Text': [feedback]  # Storing original feedback text
     })
 
     if os.path.exists(new_reviews_file):

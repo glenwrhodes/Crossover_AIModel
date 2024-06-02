@@ -20,6 +20,6 @@ datasets/
 build/
 dist/
 *.egg-info/
-*.csv
+Reviews.csv
 *.pth
 *.pkl
