@@ -1,6 +1,6 @@
 import logging
 from collections import OrderedDict
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 import pandas as pd
 from flask_caching import Cache
 from datetime import datetime
@@ -403,7 +403,10 @@ def feedback():
 
 @app.route('/readme')
 def readme():
-    return render_template('readme.html')
+    with open('README.MD', 'r') as file:
+        content = file.read()
+    return render_template('readme.html', content=content)
+
 
 # Route that displays the deep learning training metrics
 @app.route('/training_metrics')
